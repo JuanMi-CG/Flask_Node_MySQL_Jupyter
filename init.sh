@@ -4,10 +4,10 @@
 # Ubicación del directorio actual (se asume que es la raíz del repositorio)
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "Iniciando servicio de base de datos..."
-"$BASE_DIR/db.sh" &
-# Esperar a que la base de datos esté lista (ajustar el tiempo si es necesario)
-sleep 15
+# echo "Iniciando servicio de base de datos..."
+# "$BASE_DIR/db.sh" &
+# # Esperar a que la base de datos esté lista (ajustar el tiempo si es necesario)
+# sleep 15
 
 echo "Iniciando backend (Flask)..."
 "$BASE_DIR/backend.sh" &
