@@ -5,10 +5,10 @@
 # y crea una base de datos y un usuario de prueba, todo sin interacción.
 
 # Variables de configuración - Modifica estos valores según tus necesidades
-NEW_ROOT_PASS="TuNuevaContraseñaSegura"   # Contraseña para el usuario root de MySQL
-DB_NAME="basedatos_prueba"                 # Nombre de la base de datos de prueba
-DB_USER="usuario_prueba"                   # Nombre del usuario de prueba
-DB_USER_PASS="ContraseñaPrueba123"         # Contraseña para el usuario de prueba
+NEW_ROOT_PASS="administrador"           # Contraseña para el usuario root de MySQL
+DB_NAME="basedatos_prueba"                # Nombre de la base de datos de prueba
+DB_USER="usuario_prueba"                  # Nombre del usuario de prueba
+DB_USER_PASS="ContraseñaPrueba123"        # Contraseña para el usuario de prueba
 
 # Función para imprimir mensajes informativos
 function info() {
@@ -97,13 +97,17 @@ systemctl status $service_unit --no-pager
 TEMP_PASS=$(grep 'temporary password' /var/log/mysqld.log | tail -1 | awk '{print $NF}')
 
 if [ -z "$TEMP_PASS" ]; then
-    info "Estableciendo la contraseña root..."
+    info "Estableciendo la política de contraseñas a LOW y configurando la contraseña root..."
     mysql -uroot <<EOF
+SET GLOBAL validate_password.policy = LOW;
+SET GLOBAL validate_password.length = 4;
 ALTER USER 'root'@'localhost' IDENTIFIED BY '${NEW_ROOT_PASS}';
 EOF
 else
-    info "Contraseña temporal encontrada. Configurando el usuario root con la nueva contraseña..."
+    info "Contraseña temporal encontrada. Configurando la política de contraseñas a LOW y actualizando el usuario root..."
     mysql --connect-expired-password -uroot -p"${TEMP_PASS}" <<EOF
+SET GLOBAL validate_password.policy = LOW;
+SET GLOBAL validate_password.length = 4;
 ALTER USER 'root'@'localhost' IDENTIFIED BY '${NEW_ROOT_PASS}';
 EOF
 fi
