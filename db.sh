@@ -1,85 +1,130 @@
 #!/bin/bash
-set -e
+# Script para instalar, iniciar y configurar MySQL 8 en AWS EC2 con Amazon Linux 2.
+# Este script instala MySQL, inicia el servicio, ejecuta la configuración de seguridad de forma no interactiva,
+# y crea una base de datos y usuario de prueba, todo automáticamente.
 
-# This script installs MySQL Community Server on Amazon Linux 2.
-# It first removes any outdated MySQL GPG key and imports the correct key,
-# installs the EL7 MySQL repository package, creates necessary symlinks
-# for OpenSSL libraries, and configures MySQL.
+# Variables de configuración - Modifica estos valores según tus necesidades
+NEW_ROOT_PASS="TuNuevaContraseñaSegura"   # Contraseña para el usuario root de MySQL
+DB_NAME="basedatos_prueba"                 # Nombre de la base de datos de prueba
+DB_USER="usuario_prueba"                   # Nombre del usuario de prueba
+DB_USER_PASS="ContraseñaPrueba123"         # Contraseña para el usuario de prueba
 
-# Variables (override via environment if desired)
-MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-'YourNewRootPassword!'}
-MYSQL_DATABASE=${MYSQL_DATABASE:-mydatabase}
-MYSQL_USER=${MYSQL_USER:-user}
-MYSQL_PASSWORD=${MYSQL_PASSWORD:-userpassword}
+# Función para imprimir mensajes informativos
+function info() {
+    echo -e "\n[INFO] $1\n"
+}
 
-echo "Updating system..."
-sudo yum update -y
-
-# Remove the old MySQL GPG key file if it exists.
-if [ -f /etc/pki/rpm-gpg/RPM-GPG-KEY-mysql ]; then
-    echo "Removing outdated MySQL GPG key..."
-    sudo rm -f /etc/pki/rpm-gpg/RPM-GPG-KEY-mysql
-fi
-
-# Import the current MySQL GPG key (released in 2022)
-echo "Importing MySQL GPG key..."
-sudo rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
-
-# Clean yum cache to avoid old metadata
-sudo yum clean all
-
-# Install the MySQL repository package for EL7 (make sure to use the correct URL)
-echo "Installing MySQL repository package..."
-sudo yum install -y https://repo.mysql.com/mysql80-community-release-el7-3.noarch.rpm
-
-# Install MySQL Community Server
-echo "Installing MySQL Community Server..."
-sudo yum install -y mysql-community-server
-
-# Create symlinks for OpenSSL libraries if they don't exist.
-if [ ! -f /usr/lib64/libcrypto.so.10 ]; then
-    if [ -f /usr/lib64/libcrypto.so.1.0.2k ]; then
-        echo "Creating symlink for libcrypto.so.10..."
-        sudo ln -s /usr/lib64/libcrypto.so.1.0.2k /usr/lib64/libcrypto.so.10
+# Función para buscar el archivo de unidad de MySQL en rutas comunes
+function buscar_servicio() {
+    if [ -f /usr/lib/systemd/system/mysqld.service ]; then
+        echo "mysqld"
+    elif [ -f /lib/systemd/system/mysqld.service ]; then
+        echo "mysqld"
+    elif [ -f /etc/systemd/system/mysqld.service ]; then
+        echo "mysqld"
+    elif [ -f /usr/lib/systemd/system/mysql.service ]; then
+        echo "mysql"
+    elif [ -f /lib/systemd/system/mysql.service ]; then
+        echo "mysql"
+    elif [ -f /etc/systemd/system/mysql.service ]; then
+        echo "mysql"
     else
-        echo "Error: /usr/lib64/libcrypto.so.1.0.2k not found. Please ensure openssl-libs is installed."
-        exit 1
+        echo ""
     fi
-fi
+}
 
-if [ ! -f /usr/lib64/libssl.so.10 ]; then
-    if [ -f /usr/lib64/libssl.so.1.0.2k ]; then
-        echo "Creating symlink for libssl.so.10..."
-        sudo ln -s /usr/lib64/libssl.so.1.0.2k /usr/lib64/libssl.so.10
-    else
-        echo "Error: /usr/lib64/libssl.so.1.0.2k not found. Please ensure openssl-libs is installed."
-        exit 1
-    fi
-fi
-
-# Enable and start the MySQL service
-echo "Enabling and starting MySQL service..."
-sudo systemctl enable mysqld
-sudo systemctl start mysqld
-
-echo "Waiting for MySQL to initialize..."
-sleep 15
-
-# Retrieve the temporary password generated during installation
-TEMP_PASSWORD=$(sudo grep 'temporary password' /var/log/mysqld.log | awk '{print $NF}' | tail -n 1)
-if [ -z "$TEMP_PASSWORD" ]; then
-    echo "Error: Could not retrieve temporary MySQL root password."
+# Verificar que se esté ejecutando como root
+if [[ "$EUID" -ne 0 ]]; then
+    info "Por favor, ejecuta este script como root o utilizando sudo."
     exit 1
 fi
-echo "Temporary MySQL root password: $TEMP_PASSWORD"
 
-echo "Configuring MySQL database..."
-mysql -uroot -p"$TEMP_PASSWORD" --connect-expired-password <<EOF
-ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}';
-CREATE DATABASE IF NOT EXISTS \`${MYSQL_DATABASE}\`;
-CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}';
-GRANT ALL PRIVILEGES ON \`${MYSQL_DATABASE}\`.* TO '${MYSQL_USER}'@'%';
+# 1. Verificar si el paquete mysql-community-server está instalado
+if rpm -q mysql-community-server &> /dev/null; then
+    info "MySQL Community Server ya está instalado en el sistema."
+else
+    info "Actualizando paquetes del sistema..."
+    yum update -y
+    amazon-linux-extras install epel -y
+
+    # 2. Importar la clave GPG correcta para MySQL
+    info "Importando la clave GPG correcta..."
+    rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
+
+    # 3. Descargar e instalar el repositorio de MySQL
+    info "Descargando el repositorio de MySQL..."
+    wget https://dev.mysql.com/get/mysql80-community-release-el7-11.noarch.rpm -O /tmp/mysql80-community-release-el7-11.noarch.rpm
+
+    info "Limpiando la caché de YUM..."
+    yum clean packages
+
+    info "Instalando el repositorio de MySQL..."
+    rpm -ivh /tmp/mysql80-community-release-el7-11.noarch.rpm
+
+    # 4. Instalar MySQL Community Server
+    info "Instalando MySQL Community Server..."
+    yum install mysql-community-server -y --skip-broken
+fi
+
+# 5. Buscar el archivo de unidad del servicio MySQL
+service_unit=$(buscar_servicio)
+if [ -z "$service_unit" ]; then
+    info "No se encontró el archivo de unidad para MySQL. Revisa la instalación del paquete."
+    exit 1
+fi
+
+# 6. Iniciar y habilitar el servicio MySQL
+info "Iniciando el servicio $service_unit..."
+systemctl start $service_unit
+systemctl enable $service_unit
+
+# Esperar unos segundos para asegurar que el servicio se inicie
+sleep 5
+
+if systemctl is-active --quiet $service_unit; then
+    info "El servicio $service_unit se inició correctamente."
+else
+    info "Error: El servicio $service_unit no se inició correctamente."
+    exit 1
+fi
+
+info "Estado del servicio MySQL ($service_unit):"
+systemctl status $service_unit --no-pager
+
+# 7. Configuración de seguridad no interactiva de MySQL
+# Se intenta obtener la contraseña temporal (si fue generada)
+TEMP_PASS=$(grep 'temporary password' /var/log/mysqld.log | tail -1 | awk '{print $NF}')
+
+if [ -z "$TEMP_PASS" ]; then
+    info "Estableciendo la contraseña root..."
+    mysql -uroot <<EOF
+ALTER USER 'root'@'localhost' IDENTIFIED BY '${NEW_ROOT_PASS}';
+EOF
+else
+    info "Contraseña temporal encontrada. Configurando el usuario root con la nueva contraseña..."
+    mysql --connect-expired-password -uroot -p"${TEMP_PASS}" <<EOF
+ALTER USER 'root'@'localhost' IDENTIFIED BY '${NEW_ROOT_PASS}';
+EOF
+fi
+
+info "Eliminando usuarios anónimos y la base de datos de prueba..."
+mysql -uroot -p"${NEW_ROOT_PASS}" <<EOF
+DELETE FROM mysql.user WHERE User='';
+DROP DATABASE IF EXISTS test;
+DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%';
 FLUSH PRIVILEGES;
 EOF
 
-echo "MySQL installation and configuration complete."
+# 8. Crear base de datos y usuario de prueba
+info "Creando la base de datos '${DB_NAME}' y el usuario '${DB_USER}'..."
+mysql -uroot -p"${NEW_ROOT_PASS}" <<EOF
+CREATE DATABASE IF NOT EXISTS ${DB_NAME};
+CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_USER_PASS}';
+GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';
+FLUSH PRIVILEGES;
+EOF
+
+info "La instalación y configuración de MySQL se completó exitosamente."
+info "Acceso root: usuario 'root' con contraseña '${NEW_ROOT_PASS}'"
+info "Base de datos creada: '${DB_NAME}'"
+info "Usuario de la base de datos: '${DB_USER}' con contraseña '${DB_USER_PASS}'"
