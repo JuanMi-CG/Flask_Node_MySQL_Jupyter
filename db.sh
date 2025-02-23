@@ -1,7 +1,8 @@
 #!/bin/bash
-# Script para instalar, iniciar y configurar MySQL 8 en AWS EC2 con Amazon Linux 2.
-# Este script instala MySQL, inicia el servicio, ejecuta la configuración de seguridad de forma no interactiva,
-# y crea una base de datos y usuario de prueba, todo automáticamente.
+# Script para instalar, iniciar y configurar MySQL 8 en AWS EC2 con Amazon Linux 2 de forma no interactiva.
+# Este script actualiza el sistema, instala MySQL (si es necesario), arranca y habilita el servicio,
+# configura la seguridad (establece la contraseña root, elimina usuarios anónimos y la base de datos de prueba)
+# y crea una base de datos y un usuario de prueba, todo sin interacción.
 
 # Variables de configuración - Modifica estos valores según tus necesidades
 NEW_ROOT_PASS="TuNuevaContraseñaSegura"   # Contraseña para el usuario root de MySQL
@@ -35,7 +36,7 @@ function buscar_servicio() {
 
 # Verificar que se esté ejecutando como root
 if [[ "$EUID" -ne 0 ]]; then
-    info "Por favor, ejecuta este script como root o utilizando sudo."
+    info "Este script debe ejecutarse como root o utilizando sudo."
     exit 1
 fi
 
@@ -48,7 +49,7 @@ else
     amazon-linux-extras install epel -y
 
     # 2. Importar la clave GPG correcta para MySQL
-    info "Importando la clave GPG correcta..."
+    info "Importando la clave GPG..."
     rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
 
     # 3. Descargar e instalar el repositorio de MySQL
@@ -92,7 +93,7 @@ info "Estado del servicio MySQL ($service_unit):"
 systemctl status $service_unit --no-pager
 
 # 7. Configuración de seguridad no interactiva de MySQL
-# Se intenta obtener la contraseña temporal (si fue generada)
+# Se busca si se generó una contraseña temporal en el log
 TEMP_PASS=$(grep 'temporary password' /var/log/mysqld.log | tail -1 | awk '{print $NF}')
 
 if [ -z "$TEMP_PASS" ]; then
