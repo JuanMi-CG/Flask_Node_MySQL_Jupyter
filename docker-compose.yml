@@ -1,24 +1,25 @@
-version: "3.8"
-
 services:
   backend:
     build:
       context: ./backend
       args:
         FLASK_ENV: ${FLASK_ENV:-development}
-        FLASK_APP: ${FLASK_APP:-app.py}
+        FLASK_APP: ${FLASK_APP:-run.py}
     container_name: flask_backend
     ports:
       - "${BACKEND_PORT:-5000}:5000"
     environment:
       FLASK_ENV: ${FLASK_ENV:-development}
-      FLASK_APP: ${FLASK_APP:-app.py}
+      FLASK_APP: ${FLASK_APP:-run.py}
+      FLASK_DEBUG: ${FLASK_DEBUG:-1}  # Debug enabled by default
       DATABASE_URI: "mysql+pymysql://${MYSQL_USER:-user}:${MYSQL_PASSWORD:-userpassword}@db:3306/${MYSQL_DATABASE:-mydatabase}"
     depends_on:
       - db
     networks:
       - app_network
     restart: unless-stopped
+    volumes:
+      - ./backend:/app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s

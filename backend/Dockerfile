@@ -11,5 +11,5 @@ COPY . .
 
 EXPOSE 5000
 
-# Start the Flask app
+# Start the Flask app using the Flask CLI, which uses the FLASK_APP env variable
 CMD ["flask", "run", "--host=0.0.0.0"]
