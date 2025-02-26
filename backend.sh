@@ -33,9 +33,9 @@ export FLASK_ENV=${FLASK_ENV:-development}
 export FLASK_APP=${FLASK_APP:-run.py}
 export FLASK_DEBUG=${FLASK_DEBUG:-1}
 export BACKEND_PORT=${BACKEND_PORT:-5000}
-export MYSQL_USER=${MYSQL_USER:-user}
-export MYSQL_PASSWORD=${MYSQL_PASSWORD:-userpassword}
-export MYSQL_DATABASE=${MYSQL_DATABASE:-mydatabase}
+export MYSQL_USER=${MYSQL_USER:-remoto}
+export MYSQL_PASSWORD=${MYSQL_PASSWORD:-Remoto123!}
+export MYSQL_DATABASE=${MYSQL_DATABASE:-ERP}
 export DATABASE_URI=${DATABASE_URI:-"mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@localhost:3306/${MYSQL_DATABASE}"}
 
 echo "Iniciando el backend en el puerto ${BACKEND_PORT}..."
