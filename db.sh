@@ -1,8 +1,11 @@
 #!/bin/bash
 # Script para instalar, reiniciar y configurar MySQL 8 en AWS EC2 con Amazon Linux 2023 de forma no interactiva.
-# Este script desinstala versiones o repositorios anteriores (por ejemplo, EL7) y luego instala el repositorio correcto (EL9).
-# Además, actualiza la contraseña de root, ajusta la política de contraseñas, elimina usuarios anónimos y la base de datos de prueba,
-# y crea la base de datos y el usuario remoto con todos los permisos.
+# Primero intenta conectarse como root usando NEW_ROOT_PASS. Si la conexión es exitosa, solo reinicia el servicio.
+# De lo contrario, desinstala versiones/repo anteriores y procede con la instalación limpia.
+#
+# Se actualiza la contraseña de root (usando --connect-expired-password para evitar el ERROR 1820),
+# se configura la política de contraseñas, se eliminan usuarios anónimos y la base de datos de prueba,
+# y se crea la base de datos y el usuario remoto con todos los permisos.
 
 # Variables de configuración - Modifica estos valores según tus necesidades
 NEW_ROOT_PASS="Administrador123!"   # Contraseña para el usuario root de MySQL
@@ -40,45 +43,60 @@ if [[ "$EUID" -ne 0 ]]; then
     exit 1
 fi
 
-# Desinstalar versiones o repositorios previos de MySQL (por ejemplo, repositorio EL7 o instalaciones previas)
-info "Verificando instalaciones o repositorios previos de MySQL..."
+# Intentar conectarse a MySQL como root con la contraseña predefinida
+if command -v mysql &> /dev/null; then
+    mysql -uroot -p"${NEW_ROOT_PASS}" -e "SELECT 1" &> /dev/null
+    if [ $? -eq 0 ]; then
+        info "Conexión a MySQL como root con la contraseña predefinida exitosa. Solo se reiniciará el servicio."
+        service_unit=$(buscar_servicio)
+        if [ -z "$service_unit" ]; then
+            info "No se encontró el archivo de unidad para MySQL. Revisa la instalación."
+            exit 1
+        fi
+        systemctl restart $service_unit
+        info "Servicio $service_unit reiniciado exitosamente."
+        exit 0
+    fi
+fi
+
+info "No se pudo conectar a MySQL como root con la contraseña predefinida. Se procederá a desinstalar e instalar MySQL."
+
+# Desinstalar versiones o repositorios previos de MySQL (por ejemplo, repositorio EL7)
 old_repo=$(rpm -qa | grep mysql80-community-release | grep "el7")
 if [ -n "$old_repo" ]; then
     info "Se encontró el repositorio EL7 ($old_repo). Desinstalando..."
     rpm -e $old_repo
 fi
 
+# Desinstalar cualquier instalación previa de MySQL Community Server
 if rpm -q mysql-community-server &> /dev/null; then
     info "Se encontró una instalación previa de MySQL Community Server. Desinstalando..."
     yum remove -y mysql-community-server mysql-community-client mysql-community-common mysql-community-libs
 fi
 
-# 1. Verificar si el paquete mysql-community-server está instalado
-if rpm -q mysql-community-server &> /dev/null; then
-    info "MySQL Community Server ya está instalado en el sistema."
-else
-    info "Actualizando paquetes del sistema..."
-    yum update -y
-    # Nota: En Amazon Linux 2023 no se dispone de amazon-linux-extras, por lo que se omite esta línea.
-    
-    # Importar la clave GPG de MySQL (actualizada para EL9)
-    info "Importando la clave GPG..."
-    rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2023
+# 1. Instalar MySQL si no está instalado
+info "Actualizando paquetes del sistema..."
+yum update -y
 
-    # Descargar e instalar el repositorio de MySQL para EL9
-    info "Descargando el repositorio de MySQL para EL9..."
-    wget https://dev.mysql.com/get/mysql80-community-release-el9-1.noarch.rpm -O /tmp/mysql80-community-release-el9-1.noarch.rpm
+# Nota: En Amazon Linux 2023 no se dispone de amazon-linux-extras, se omite esa línea.
 
-    info "Limpiando la caché de YUM..."
-    yum clean packages
+# Importar la clave GPG actualizada para MySQL
+info "Importando la clave GPG..."
+rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2023
 
-    info "Instalando el repositorio de MySQL..."
-    rpm -ivh /tmp/mysql80-community-release-el9-1.noarch.rpm
+# Descargar e instalar el repositorio de MySQL para EL9
+info "Descargando el repositorio de MySQL para EL9..."
+wget https://dev.mysql.com/get/mysql80-community-release-el9-1.noarch.rpm -O /tmp/mysql80-community-release-el9-1.noarch.rpm
 
-    # Instalar MySQL Community Server
-    info "Instalando MySQL Community Server..."
-    yum install mysql-community-server -y --skip-broken
-fi
+info "Limpiando la caché de YUM..."
+yum clean packages
+
+info "Instalando el repositorio de MySQL..."
+rpm -ivh /tmp/mysql80-community-release-el9-1.noarch.rpm
+
+# Instalar MySQL Community Server
+info "Instalando MySQL Community Server..."
+yum install mysql-community-server -y --skip-broken
 
 # 2. Buscar el archivo de unidad del servicio MySQL
 service_unit=$(buscar_servicio)
@@ -87,7 +105,7 @@ if [ -z "$service_unit" ]; then
     exit 1
 fi
 
-# 3. Reiniciar el servicio si ya estaba activo, o iniciarlo si no lo estaba
+# 3. Reiniciar o iniciar el servicio
 if systemctl is-active --quiet $service_unit; then
     info "El servicio $service_unit ya está activo. Reiniciándolo..."
     systemctl restart $service_unit
@@ -110,7 +128,7 @@ fi
 info "Estado del servicio MySQL ($service_unit):"
 systemctl status $service_unit --no-pager
 
-# 4. Actualización de la contraseña de root y ajuste de la política de contraseñas
+# 4. Actualizar la contraseña de root y ajustar la política de contraseñas
 TEMP_PASS=$(grep 'temporary password' /var/log/mysqld.log | tail -1 | awk '{print $NF}')
 if [ -n "$TEMP_PASS" ]; then
     info "Contraseña temporal encontrada: $TEMP_PASS. Actualizando contraseña de root..."
