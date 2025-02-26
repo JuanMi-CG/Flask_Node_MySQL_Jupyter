@@ -15,7 +15,7 @@ sudo "$BASE_DIR/backend.sh" &
 echo "Iniciando frontend (Vue.js)..."
 sudo "$BASE_DIR/frontend.sh" &
 
-echo "Iniciando Jupyter Notebook..."
-sudo "$BASE_DIR/jupyter.sh" &
+# echo "Iniciando Jupyter Notebook..."
+# sudo "$BASE_DIR/jupyter.sh" &
 
 echo "Todos los servicios han sido iniciados."
