@@ -5,7 +5,7 @@
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "Iniciando servicio de base de datos..."
-sudo "$BASE_DIR/db.sh" &
+sudo "$BASE_DIR/db.sh"
 # Esperar a que la base de datos esté lista (ajustar el tiempo si es necesario)
 sleep 15
 
