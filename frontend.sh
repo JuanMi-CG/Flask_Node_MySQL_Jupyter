@@ -4,7 +4,7 @@
 # Verificar instalación de Node.js
 if ! command -v node &>/dev/null; then
     echo "Node.js no está instalado. Instalando Node.js..."
-    curl -sL https://rpm.nodesource.com/setup_16.x | sudo bash -
+    curl -sL https://rpm.nodesource.com/setup_20.x | sudo bash -
     sudo yum install -y nodejs
 fi
 
