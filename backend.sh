@@ -16,6 +16,19 @@ fi
 # Ir al directorio del backend
 cd "$(dirname "$0")/backend" || { echo "Directorio backend no encontrado"; exit 1; }
 
+# Verificar si el entorno virtual existe
+if [ -d "venv" ]; then
+    echo "Activando entorno virtual..."
+    source venv/bin/activate
+    
+    # Verificar si Flask está instalado, si no, eliminar y recrear venv
+    if ! python3 -c "import flask" &>/dev/null; then
+        echo "Error: No se encontró Flask en el entorno virtual. Eliminando y recreando venv..."
+        deactivate 2>/dev/null
+        rm -rf venv
+    fi
+fi
+
 # Crear y activar entorno virtual si no existe
 if [ ! -d "venv" ]; then
     echo "Creando entorno virtual e instalando dependencias..."
@@ -23,9 +36,6 @@ if [ ! -d "venv" ]; then
     source venv/bin/activate
     pip install --upgrade pip
     pip install -r requirements.txt
-else
-    echo "Activando entorno virtual..."
-    source venv/bin/activate
 fi
 
 # Variables de entorno (se pueden sobrescribir externamente)
@@ -39,4 +49,4 @@ export MYSQL_DATABASE=${MYSQL_DATABASE:-ERP}
 export DATABASE_URI=${DATABASE_URI:-"mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@localhost:3306/${MYSQL_DATABASE}"}
 
 echo "Iniciando el backend en el puerto ${BACKEND_PORT}..."
-exec python3 -m flask run --host=0.0.0.0 --port "${BACKEND_PORT}"
+exec venv/bin/python3 -m flask run --host=0.0.0.0 --port "${BACKEND_PORT}"
