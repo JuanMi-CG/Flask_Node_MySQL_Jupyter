@@ -4,18 +4,18 @@
 # Ubicación del directorio actual (se asume que es la raíz del repositorio)
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# echo "Iniciando servicio de base de datos..."
-# "$BASE_DIR/db.sh" &
-# # Esperar a que la base de datos esté lista (ajustar el tiempo si es necesario)
-# sleep 15
+echo "Iniciando servicio de base de datos..."
+sudo "$BASE_DIR/db.sh" &
+# Esperar a que la base de datos esté lista (ajustar el tiempo si es necesario)
+sleep 15
 
 echo "Iniciando backend (Flask)..."
-"$BASE_DIR/backend.sh" &
+sudo "$BASE_DIR/backend.sh" &
 
 echo "Iniciando frontend (Vue.js)..."
-"$BASE_DIR/frontend.sh" &
+sudo "$BASE_DIR/frontend.sh" &
 
 echo "Iniciando Jupyter Notebook..."
-"$BASE_DIR/jupyter.sh" &
+sudo "$BASE_DIR/jupyter.sh" &
 
 echo "Todos los servicios han sido iniciados."
